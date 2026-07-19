@@ -66,7 +66,7 @@ export function mergeApprovedStagingIntoZpdc(internal, stagingEntries) {
 
   let nextNumber = maxWordNumber(clone) + 1
   // 新規語を先にすべて追加（後に既存語の relations に追加する際に number を参照するため）
-  const新建語BySpelling = new Map()
+  const newWordBySpelling = new Map()
   const newWordsBuffer = []
 
   // 1) 新規語
@@ -92,7 +92,7 @@ export function mergeApprovedStagingIntoZpdc(internal, stagingEntries) {
     // 複数品詞を登録する場合は、同一綴りに対する新規語エントリが複数できる。
     appendEquivalentToSection(w.sections[0], e.pos || [], e.meanings || [])
     newWordsBuffer.push({ w, source: e.source, spelling: e.spelling })
-    新建語BySpelling.set(e.spelling, w)
+    newWordBySpelling.set(e.spelling, w)
   }
 
   // 2) 既存語への意味追加（add_sense）
@@ -117,7 +117,7 @@ export function mergeApprovedStagingIntoZpdc(internal, stagingEntries) {
   //     少なくとも新規語の relations に著者自身が入力した関連語綴りを反映する。）
   for (const e of stagingEntries) {
     if (e.type !== StagingRecordType.NEW_WORD) continue
-    const w = 新建語BySpelling.get(e.spelling)
+    const w = newWordBySpelling.get(e.spelling)
     if (!w) continue
     const rels = Array.isArray(e.relations) ? e.relations : []
     if (rels.length === 0) continue
@@ -128,7 +128,7 @@ export function mergeApprovedStagingIntoZpdc(internal, stagingEntries) {
       const existing = (clone.words || []).find(
         (x) => (x.spelling || '').toLowerCase() === (r.spelling || '').toLowerCase() && x !== w
       )
-      const ref = existing || 新建語BySpelling.get(r.spelling)
+      const ref = existing || newWordBySpelling.get(r.spelling)
       const number = ref?.number ?? null
       const titles = Array.isArray(r.titles) ? r.titles : r.titles ? [r.titles] : ['関連語']
       section.relations = section.relations || []
