@@ -1,0 +1,161 @@
+import initSqlJs from 'sql.js'
+
+// sql.js の wasm を public/ 配下から読み込む。
+// viteのbase pathが '/cl-vocab-expander/' でも確実に解決できるように
+// import.meta.env.BASE_URL を使う（末尾スラッシュあり）。
+const WASM_URL = (import.meta.env.BASE_URL || '/') + 'sql-wasm.wasm'
+const DB_URL = (import.meta.env.BASE_URL || '/') + 'wnjpn.db'
+
+let SQL = null
+let db = null
+let loadPromise = null
+
+// WordNetの品詞文字 → 人間可読の表示名（日本語WordNetのpos_defテーブル互換）
+const POS_LABELS = {
+  n: '名詞',
+  v: '動詞',
+  a: '形容詞',
+  r: '副詞',
+  s: '形容詞' // "satellite adjective" は形容詞にまとめる
+}
+
+export function wordnetPosLabel(pos) {
+  return POS_LABELS[pos] || pos || ''
+}
+
+// WordNetをブラウザ内にロードする。初回は数十〜数百MBのDBダウンロードが発生する。
+// 既にロード済みならキャッシュを返す（複数回呼ばれても1回だけ読み込む）。
+export async function loadWordNet({ onProgress } = {}) {
+  if (db) return db
+  if (loadPromise) return loadPromise
+  loadPromise = (async () => {
+    // 1) sql.js 本体と wasm を初期化
+    SQL = await initSqlJs({ locateFile: () => WASM_URL })
+
+    // 2) DBファイルを fetch で取得（進捗コールバック対応）
+    const resp = await fetch(DB_URL)
+    if (!resp.ok) throw new Error(`wnjpn.db の取得に失敗: ${resp.status}`)
+    const total = Number(resp.headers.get('Content-Length') || 0)
+    if (!resp.body || !total || !onProgress) {
+      const buf = await resp.arrayBuffer()
+      db = new SQL.Database(new Uint8Array(buf))
+      return db
+    }
+    // ストリーム読み込み＋進捗
+    const reader = resp.body.getReader()
+    const chunks = []
+    let received = 0
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      chunks.push(value)
+      received += value.length
+      onProgress({ received, total, ratio: received / total })
+    }
+    const merged = new Uint8Array(received)
+    let offset = 0
+    for (const c of chunks) {
+      merged.set(c, offset)
+      offset += c.length
+    }
+    db = new SQL.Database(merged)
+    return db
+  })()
+  return loadPromise
+}
+
+export function isWordNetLoaded() {
+  return !!db
+}
+
+// --- 検索API ---------------------------------------------------------------
+
+// まだ出題していないsynsetをランダムに1件取得（3章）。
+// excludeSynsets: 出題済みsynset ID の Set。
+// allowReissue: trueなら出題済みでも再出題する（3章オプション）。
+export function pickRandomSynset(excludeSynsets, allowReissue = false) {
+  if (!db) throw new Error('WordNet が未ロード')
+  let sql = `SELECT s.synset, s.pos, s.name FROM synset s`
+  const params = []
+  if (!allowReissue && excludeSynsets && excludeSynsets.size > 0) {
+    // IN 句のプレースホルダを動的に生成（数が大きい場合はチャンク分割）
+    sql += ` WHERE s.synset NOT IN (${[...Array(excludeSynsets.size)].map(() => '?').join(',')})`
+    params.push(...excludeSynsets)
+  }
+  sql += ` ORDER BY RANDOM() LIMIT 1`
+  const row = db.prepare(sql).get(...params)
+  return row || null
+}
+
+// synset の見出し語（日本語優先、無ければ英語）の一覧を取得。
+export function getSynsetWords(synset) {
+  const rows = db
+    .prepare(
+      `SELECT w.lemma, s.lang, w.pos
+       FROM sense s JOIN word w ON s.wordid = w.wordid
+       WHERE s.synset = ? ORDER BY s.lang ASC, s.rank ASC`,
+    )
+    .all(synset)
+  const ja = rows.filter((r) => r.lang === 'jpn').map((r) => r.lemma.trim())
+  const en = rows.filter((r) => r.lang === 'eng').map((r) => r.lemma.trim())
+  return { ja, en, all: rows }
+}
+
+// synset の定義文（gloss）を取得。日本語優先。
+export function getSynsetDef(synset) {
+  const rows = db
+    .prepare(
+      `SELECT lang, def FROM synset_def WHERE synset = ? ORDER BY CASE WHEN lang='jpn' THEN 0 ELSE 1 END, sid ASC`,
+    )
+    .all(synset)
+  return rows
+}
+
+// synset の直接の上位語（hypernym）を取得。複数ある場合はすべて返す（3章）。
+export function getHypernyms(synset) {
+  return db
+    .prepare(
+      `SELECT s2.synset, s2.pos, s2.name
+       FROM synlink l JOIN synset s2 ON l.synset2 = s2.synset
+       WHERE l.synset1 = ? AND l.link = 'hypernym'`,
+    )
+    .all(synset)
+}
+
+// synset の下位語（hyponym）。任意の追加関連語取得用（2.1節、3章6項目）。
+export function getHyponyms(synset) {
+  return db
+    .prepare(
+      `SELECT s2.synset, s2.pos, s2.name
+       FROM synlink l JOIN synset s2 ON l.synset2 = s2.synset
+       WHERE l.synset1 = ? AND l.link = 'hyponym'`,
+    )
+    .all(synset)
+}
+
+// synset の反意語（antonym）。
+export function getAntonyms(synset) {
+  return db
+    .prepare(
+      `SELECT s2.synset, s2.pos, s2.name
+       FROM synlink l JOIN synset s2 ON l.synset2 = s2.synset
+       WHERE l.synset1 = ? AND l.link = 'antonym'`,
+    )
+    .all(synset)
+}
+
+// 任意の link 種別で synset を辿る汎用API（2.1節の柔軟検索）。
+export function getLinkedSynsets(synset, link) {
+  return db
+    .prepare(
+      `SELECT s2.synset, s2.pos, s2.name, ? AS link
+       FROM synlink l JOIN synset s2 ON l.synset2 = s2.synset
+       WHERE l.synset1 = ? AND l.link = ?`,
+    )
+    .all(link, synset, link)
+}
+
+// 全 synset 数（Settings画面や動作確認用）。
+export function countSynsets() {
+  return db.prepare('SELECT COUNT(*) c FROM synset').get().c
+}

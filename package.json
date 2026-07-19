@@ -1,0 +1,22 @@
+﻿{
+  "name": "cl-vocab-expander",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "人工言語語彙拡充器 - 日本語WordNetを刺激として人工言語の語彙を拡充する静的SPA",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "dexie": "^4.0.10",
+    "sql.js": "^1.12.0",
+    "vue": "^3.5.13",
+    "vue-router": "^4.5.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.2.1",
+    "vite": "^6.0.7"
+  }
+}

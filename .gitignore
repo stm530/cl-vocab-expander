@@ -1,0 +1,16 @@
+# 参考資料（制作時のみ使用・リポジトリには含めない）
+reference/
+
+# Node.js / ビルド成果物
+node_modules/
+dist/
+
+# 秘匿情報
+.env
+.env.*
+!.env.example
+
+# OS / エディタ由来の一時ファイル
+.DS_Store
+Thumbs.db
+*.log
