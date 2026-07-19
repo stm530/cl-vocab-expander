@@ -10,6 +10,9 @@ dist/
 .env.*
 !.env.example
 
+# Playwright テスト一時ファイル
+.playwright-mcp/
+
 # OS / エディタ由来の一時ファイル
 .DS_Store
 Thumbs.db
