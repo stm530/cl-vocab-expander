@@ -216,17 +216,16 @@ export function newId(prefix = 'id') {
   return `${prefix}_${Date.now().toString(36)}_${_seq}`
 }
 
-function newMeaningNode(text, origin = 'new') {
+export function newMeaningNode(text, origin = 'new') {
   return {
     id: newId('m'),
     origin,
     text: text || '',
-    // 既存データ由来のときだけ意味追加元の equivalent インデックスを持つ
     _srcEquivalentIndex: null
   }
 }
 
-function newPosGroupNode(titles, origin = 'new') {
+export function newPosGroupNode(titles, origin = 'new') {
   return {
     id: newId('p'),
     origin,
