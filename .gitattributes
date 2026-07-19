@@ -1,0 +1,2 @@
+public/wnjpn.db filter=lfs diff=lfs merge=lfs -text
+public/sql-wasm.wasm filter=lfs diff=lfs merge=lfs -text
