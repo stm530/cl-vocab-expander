@@ -106,7 +106,7 @@ export async function nextQuiz() {
   if (!store.zpdcReady || !store.wordnetReady) return null
   const allowReissue = await getAllowReissue()
   const issued = await getIssuedSynsets()
-  const row = pickRandomSynset(issued, allowReissue)
+  const row = pickRandomSynset(issued, allowReissue, true)
   if (!row) return null
   await addIssuedSynset(row.synset)
 

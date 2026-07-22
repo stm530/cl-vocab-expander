@@ -92,18 +92,34 @@ export function isWordNetLoaded() {
 // まだ出題していないsynsetをランダムに1件取得（3章）。
 // excludeSynsets: 出題済みsynset ID の Set。
 // allowReissue: trueなら出題済みでも再出題する（3章オプション）。
-export function pickRandomSynset(excludeSynsets, allowReissue = false) {
+// requireJapanese: trueなら日本語 lemma が最低1つ存在する synset のみを候補にする。
+//   （デフォルト true。wnjpn は英語 synset を全て内包しているが、未翻訳のものは
+//   ja lemma を持たずフォールバックの英語ラベルしか表示できないため除外する。）
+export function pickRandomSynset(excludeSynsets, allowReissue = false, requireJapanese = true) {
   if (!db) throw new Error('WordNet が未ロード')
-  let sql = `SELECT s.synset, s.pos, s.name FROM synset s`
+  const conds = []
   const params = []
   if (!allowReissue && excludeSynsets && excludeSynsets.size > 0) {
     // null/undefined/非文字列が混じっていると NOT IN が全件マッチを返すので除外する
     const valid = [...excludeSynsets].filter((v) => v !== null && v !== undefined && v !== '')
     if (valid.length > 0) {
-      sql += ` WHERE s.synset NOT IN (${valid.map(() => '?').join(',')})`
+      conds.push(`s.synset NOT IN (${valid.map(() => '?').join(',')})`)
       params.push(...valid)
     }
   }
+  if (requireJapanese) {
+    // 日本語 lemma が空白以外で最低1つ紐づいている synset のみ。
+    // EXISTS で先頭ヒットで打ち切るのでコストも軽い。
+    conds.push(`EXISTS (
+      SELECT 1 FROM sense sj
+        JOIN word wj ON sj.wordid = wj.wordid
+       WHERE sj.synset = s.synset
+         AND sj.lang = 'jpn'
+         AND TRIM(wj.lemma) <> ''
+    )`)
+  }
+  let sql = `SELECT s.synset, s.pos, s.name FROM synset s`
+  if (conds.length > 0) sql += ` WHERE ` + conds.join(' AND ')
   sql += ` ORDER BY RANDOM() LIMIT 1`
   const row = db && runOne(sql, params)
   return row || null
