@@ -15,9 +15,10 @@
 
 <script setup>
 import { onMounted } from 'vue'
-import { store, initWordNet, resetStore } from './store.js'
+import { store, initWordNet, tryLoadZpdcFromIndexedDB } from './store.js'
 
 onMounted(() => {
+  tryLoadZpdcFromIndexedDB()
   initWordNet()
 })
 </script>

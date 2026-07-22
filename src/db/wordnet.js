@@ -10,6 +10,25 @@ let SQL = null
 let db = null
 let loadPromise = null
 
+// sql.js の Statement には .all()/.get(params) が無いため、
+// プレースホルダ付きSQLから全行/1行を取得するヘルパー。
+function runAll(sql, params = []) {
+  const stmt = db.prepare(sql)
+  stmt.bind(params)
+  const rows = []
+  while (stmt.step()) rows.push(stmt.getAsObject())
+  stmt.free()
+  return rows
+}
+
+function runOne(sql, params = []) {
+  const stmt = db.prepare(sql)
+  stmt.bind(params)
+  const row = stmt.step() ? stmt.getAsObject() : null
+  stmt.free()
+  return row
+}
+
 // WordNetの品詞文字 → 人間可読の表示名（日本語WordNetのpos_defテーブル互換）
 const POS_LABELS = {
   n: '名詞',
@@ -78,84 +97,80 @@ export function pickRandomSynset(excludeSynsets, allowReissue = false) {
   let sql = `SELECT s.synset, s.pos, s.name FROM synset s`
   const params = []
   if (!allowReissue && excludeSynsets && excludeSynsets.size > 0) {
-    // IN 句のプレースホルダを動的に生成（数が大きい場合はチャンク分割）
-    sql += ` WHERE s.synset NOT IN (${[...Array(excludeSynsets.size)].map(() => '?').join(',')})`
-    params.push(...excludeSynsets)
+    // null/undefined/非文字列が混じっていると NOT IN が全件マッチを返すので除外する
+    const valid = [...excludeSynsets].filter((v) => v !== null && v !== undefined && v !== '')
+    if (valid.length > 0) {
+      sql += ` WHERE s.synset NOT IN (${valid.map(() => '?').join(',')})`
+      params.push(...valid)
+    }
   }
   sql += ` ORDER BY RANDOM() LIMIT 1`
-  const row = db.prepare(sql).get(...params)
+  const row = db && runOne(sql, params)
   return row || null
 }
 
 // synset の見出し語（日本語優先、無ければ英語）の一覧を取得。
 export function getSynsetWords(synset) {
-  const rows = db
-    .prepare(
-      `SELECT w.lemma, s.lang, w.pos
+  const rows = runAll(
+    `SELECT w.lemma, s.lang, w.pos
        FROM sense s JOIN word w ON s.wordid = w.wordid
        WHERE s.synset = ? ORDER BY s.lang ASC, s.rank ASC`,
-    )
-    .all(synset)
-  const ja = rows.filter((r) => r.lang === 'jpn').map((r) => r.lemma.trim())
-  const en = rows.filter((r) => r.lang === 'eng').map((r) => r.lemma.trim())
+    [synset],
+  )
+  const ja = rows.filter((r) => r.lang === 'jpn').map((r) => (r.lemma || '').trim())
+  const en = rows.filter((r) => r.lang === 'eng').map((r) => (r.lemma || '').trim())
   return { ja, en, all: rows }
 }
 
 // synset の定義文（gloss）を取得。日本語優先。
 export function getSynsetDef(synset) {
-  const rows = db
-    .prepare(
-      `SELECT lang, def FROM synset_def WHERE synset = ? ORDER BY CASE WHEN lang='jpn' THEN 0 ELSE 1 END, sid ASC`,
-    )
-    .all(synset)
-  return rows
+  return runAll(
+    `SELECT lang, def FROM synset_def WHERE synset = ? ORDER BY CASE WHEN lang='jpn' THEN 0 ELSE 1 END, sid ASC`,
+    [synset],
+  )
 }
 
 // synset の直接の上位語（hypernym）を取得。複数ある場合はすべて返す（3章）。
 export function getHypernyms(synset) {
-  return db
-    .prepare(
-      `SELECT s2.synset, s2.pos, s2.name
+  return runAll(
+    `SELECT s2.synset, s2.pos, s2.name
        FROM synlink l JOIN synset s2 ON l.synset2 = s2.synset
        WHERE l.synset1 = ? AND l.link = 'hypernym'`,
-    )
-    .all(synset)
+    [synset],
+  )
 }
 
 // synset の下位語（hyponym）。任意の追加関連語取得用（2.1節、3章6項目）。
 export function getHyponyms(synset) {
-  return db
-    .prepare(
-      `SELECT s2.synset, s2.pos, s2.name
+  return runAll(
+    `SELECT s2.synset, s2.pos, s2.name
        FROM synlink l JOIN synset s2 ON l.synset2 = s2.synset
        WHERE l.synset1 = ? AND l.link = 'hyponym'`,
-    )
-    .all(synset)
+    [synset],
+  )
 }
 
 // synset の反意語（antonym）。
 export function getAntonyms(synset) {
-  return db
-    .prepare(
-      `SELECT s2.synset, s2.pos, s2.name
+  return runAll(
+    `SELECT s2.synset, s2.pos, s2.name
        FROM synlink l JOIN synset s2 ON l.synset2 = s2.synset
        WHERE l.synset1 = ? AND l.link = 'antonym'`,
-    )
-    .all(synset)
+    [synset],
+  )
 }
 
 // 任意の link 種別で synset を辿る汎用API（2.1節の柔軟検索）。
 export function getLinkedSynsets(synset, link) {
-  return db
-    .prepare(
-      `SELECT s2.synset, s2.pos, s2.name, ? AS link
+  return runAll(
+    `SELECT s2.synset, s2.pos, s2.name, ? AS link
        FROM synlink l JOIN synset s2 ON l.synset2 = s2.synset
        WHERE l.synset1 = ? AND l.link = ?`,
-    )
-    .all(link, synset, link)
+    [link, synset, link],
+  )
 }
 
 // 全 synset 数（Settings画面や動作確認用）。
 export function countSynsets() {
-  return db.prepare('SELECT COUNT(*) c FROM synset').get().c
+  return (runOne('SELECT COUNT(*) c FROM synset') || {}).c || 0
 }

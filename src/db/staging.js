@@ -122,7 +122,12 @@ export async function getIssuedSynsets() {
   const raw = await getMeta('issuedSynsets', '[]')
   try {
     const arr = JSON.parse(raw)
-    return new Set(Array.isArray(arr) ? arr : [])
+    if (!Array.isArray(arr)) return new Set()
+    const filtered = arr.filter((v) => v !== null && v !== undefined && v !== '')
+    if (filtered.length !== arr.length) {
+      await setMeta('issuedSynsets', JSON.stringify(filtered))
+    }
+    return new Set(filtered)
   } catch {
     return new Set()
   }

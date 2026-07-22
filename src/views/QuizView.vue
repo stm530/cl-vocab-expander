@@ -9,12 +9,16 @@
 
     <template v-else>
       <div class="quiz-controls" v-if="!quiz || quiz.submitted">
-        <button @click="newQuiz" :disabled="loading">次の出題</button>
+        <button @click="fetchQuiz" :disabled="loading">次の出題</button>
         <label class="checkbox-inline">
           <input type="checkbox" v-model="reissue" />
           出題済みを再出題する
         </label>
         <span class="issued-info">出題済み: {{ issuedCount }}件</span>
+      </div>
+
+      <div v-if="fetchError" class="notice fetch-error">
+        {{ fetchError }}
       </div>
 
       <div v-if="quiz && !quiz.submitted" class="card">
@@ -90,6 +94,7 @@ const quiz = computed(() => store.currentQuiz)
 const loading = ref(false)
 const reissue = ref(false)
 const issuedCount = ref(0)
+const fetchError = ref('')
 
 let issuedCache = new Set()
 async function refreshIssued() {
@@ -114,9 +119,17 @@ const hasAnyNew = computed(() => hasTargetNew.value || hasHyperNew.value || hasS
 
 async function fetchQuiz() {
   loading.value = true
-  const r = await getAllowReissue()
-  reissue.value = r
-  await nextQuiz()
+  fetchError.value = ''
+  try {
+    const r = await getAllowReissue()
+    reissue.value = r
+    const q = await nextQuiz()
+    if (!q) {
+      fetchError.value = '出題できる synset が見つかりませんでした。「出題済みを再出題する」をオンにするか、設定画面でステージングをリセットしてください。'
+    }
+  } catch (e) {
+    fetchError.value = `出題に失敗しました: ${e.message || e}`
+  }
   await refreshIssued()
   loading.value = false
 }
@@ -229,6 +242,14 @@ refreshIssued()
   display: inline-flex;
   gap: 4px;
   align-items: center;
+  font-size: 13px;
+}
+.fetch-error {
+  margin-top: 8px;
+  padding: 8px 12px;
+  border: 1px solid #c99;
+  background: #fbe;
+  color: #800;
   font-size: 13px;
 }
 </style>

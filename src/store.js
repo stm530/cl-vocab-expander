@@ -137,12 +137,13 @@ export async function nextQuiz() {
     hyperTrees.push(emptyWordTree(''))
   }
 
-  const targetMeaningTexts = words.ja.concat(words.en).filter(Boolean)
-  const queryText = targetMeaningText.join(' ') + ' ' + defs.map(d => d.def).join(' ')
+  const targetMeaningTexts = words.ja.concat(words.en).filter(Boolean).map(s => String(s || '').trim()).filter(Boolean)
+  const defTexts = defs.map(d => String(d.def || '').trim()).filter(Boolean)
+  const queryText = targetMeaningTexts.join(' ') + ' ' + defTexts.join(' ')
   const similarResults = store.simEngine ? store.simEngine.search(queryText, 5, store.internalRoot) : []
 
   const similarTrees = similarResults.map((r) => {
-    const t = wordTree(r.word)
+    const t = wordToTree(r.word)
     if (!hasNewNode(t)) {
       const pg = t.posGroups.find(g => g.origin === 'existing')
       if (pg) {
