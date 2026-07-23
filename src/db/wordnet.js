@@ -54,8 +54,10 @@ export async function loadWordNet({ onProgress } = {}) {
     // 2) DBファイルを fetch で取得（進捗コールバック対応）
     const resp = await fetch(DB_URL)
     if (!resp.ok) throw new Error(`wnjpn.db の取得に失敗: ${resp.status}`)
+    const contentEncoding = resp.headers.get('Content-Encoding') || ''
     const total = Number(resp.headers.get('Content-Length') || 0)
-    if (!resp.body || !total || !onProgress) {
+    const hasProgress = resp.body && total && onProgress && !contentEncoding
+    if (!hasProgress) {
       const buf = await resp.arrayBuffer()
       db = new SQL.Database(new Uint8Array(buf))
       return db
