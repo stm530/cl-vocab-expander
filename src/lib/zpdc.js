@@ -1,109 +1,14 @@
-// ZPDC(OTM-JSON) 形式のパース・正規化・マージ・単語ツリー変換を行う。
+// ZPDC(ZpDIC) 形式のパース・正規化・マージ・単語ツリー変換を行う。
 //
 // 対象バージョン:
-//   version=1 (ZpDIC形式) … サンプル辞書 .zpdc で使用
-//   version=2 (OTM-JSON)  … ZpDIC Online からエクスポートした .json
+//   version=1 (ZpDIC形式 .zpdc) のみ対応
 //
-// 内部では「version=1相当の平坦構造」を共通表現として扱い、出力時は
-// 入力と同じ version を維持する（0.2節「4項目以外は元データを保持」のため）。
+// 内部では「version=1相当の平坦構造」を共通表現として扱う。
 
 export function detectVersion(root) {
   if (!root || typeof root !== 'object') return null
   if (root.version === 1) return 1
-  if (root.version === 2) return 2
   return null
-}
-
-// version=2 (OTM-JSON) の1語を version=1 (ZpDIC) 構造に変換する。
-// sections 化・titles配列化・termString 補完を行う。
-function v2WordToV1(w) {
-  const sections = []
-  const section = {
-    equivalents: [],
-    informations: [],
-    phrases: [],
-    variations: [],
-    relations: []
-  }
-  for (const t of w.translations || []) {
-    section.equivalents.push({
-      titles: Array.isArray(t.title) ? t.title : t.title ? [t.title] : [],
-      terms: Array.isArray(t.forms) ? [...t.forms] : [],
-      // termString は terms を ", " で結合（zpdicOnline.punctuations 取得手段が
-      // ファイルに含まれていない場合があるため、安全側の既定値）
-      termString: Array.isArray(t.forms) ? t.forms.join(', ') : '',
-      ignoredPattern: '',
-      hidden: false
-    })
-  }
-  for (const c of w.contents || []) {
-    section.informations.push({
-      title: c.title || '',
-      text: c.text || '',
-      hidden: false
-    })
-  }
-  for (const v of w.variations || []) {
-    section.variations.push({
-      title: v.title || '',
-      spelling: v.form || '',
-      pronunciation: ''
-    })
-  }
-  for (const r of w.relations || []) {
-    section.relations.push({
-      titles: r.title ? [r.title] : [],
-      number: r.entry?.id,
-      spelling: r.entry?.form || ''
-    })
-  }
-  sections.push(section)
-  return {
-    id: null,
-    number: w.entry?.id ?? 0,
-    spelling: w.entry?.form || '',
-    pronunciation: '',
-    tags: Array.isArray(w.tags) ? [...w.tags] : [],
-    sections
-  }
-}
-
-// version=1 構造を version=2 (OTM-JSON) に変換する。
-// 複数セクションのマージ方針は reference/zpdic-api/05-otm-json-mapping.md
-// 「ZpDIC → OTM-JSON」の推奨に従う（順に連結）。
-function v1WordToV2(w) {
-  const translations = []
-  const contents = []
-  const variations = []
-  const relations = []
-  for (const sec of w.sections || []) {
-    for (const e of sec.equivalents || []) {
-      translations.push({
-        title: e.titles?.[0] || '',
-        forms: [...(e.terms || [])]
-      })
-    }
-    for (const i of sec.informations || []) {
-      contents.push({ title: i.title || '', text: i.text || '' })
-    }
-    for (const v of sec.variations || []) {
-      variations.push({ title: v.title || '', form: v.spelling || '' })
-    }
-    for (const r of sec.relations || []) {
-      relations.push({
-        title: r.titles?.[0] || '',
-        entry: { id: r.number, form: r.spelling || '' }
-      })
-    }
-  }
-  return {
-    entry: { id: w.number, form: w.spelling || '' },
-    tags: [...(w.tags || [])],
-    translations,
-    contents,
-    variations,
-    relations
-  }
 }
 
 // 任意バージョンのルートを「内部共通表現（version=1相当）」に正規化する。
@@ -113,83 +18,46 @@ function v1WordToV2(w) {
 // equivalents 各要素は: titles, terms, termString, ignoredPattern, hidden
 export function normalizeToInternal(root) {
   const v = detectVersion(root)
-  if (!v) throw new Error('未知のZPDC形式です (versionが1でも2でもありません)')
-  if (v === 1) {
-    // version=1 は見た目そのままでよいが、欠損キーを補完する
-    const words = (root.words || []).map((w) => ({
-      id: w.id || null,
-      number: w.number ?? 0,
-      spelling: w.spelling || '',
-      pronunciation: w.pronunciation || '',
-      tags: Array.isArray(w.tags) ? [...w.tags] : [],
-      sections: (w.sections || []).map((sec) => ({
-        equivalents: (sec.equivalents || []).map(e => ({
-          titles: Array.isArray(e.titles) ? [...e.titles] : [],
-          terms: Array.isArray(e.terms) ? [...e.terms] : [],
-          termString: e.termString ?? (Array.isArray(e.terms) ? e.terms.join(', ') : ''),
-          ignoredPattern: e.ignoredPattern || '',
-          hidden: !!e.hidden
-        })),
-        informations: (sec.informations || []).map(i => ({
-          title: i.title || '',
-          text: i.text || '',
-          hidden: !!i.hidden
-        })),
-        phrases: (sec.phrases || []).slice(),
-        variations: (sec.variations || []).map(va => ({
-          title: va.title || '',
-          spelling: va.spelling || '',
-          pronunciation: va.pronunciation || ''
-        })),
-        relations: (sec.relations || []).map(r => ({
-          titles: Array.isArray(r.titles) ? [...r.titles] : [],
-          number: r.number,
-          spelling: r.spelling || ''
-        }))
+  if (!v) throw new Error('未知のZPDC形式です (versionが1ではありません)')
+  // version=1 は見た目そのままでよいが、欠損キーを補完する
+  const words = (root.words || []).map((w) => ({
+    id: w.id || null,
+    number: w.number ?? 0,
+    spelling: w.spelling || '',
+    pronunciation: w.pronunciation || '',
+    tags: Array.isArray(w.tags) ? [...w.tags] : [],
+    sections: (w.sections || []).map((sec) => ({
+      equivalents: (sec.equivalents || []).map(e => ({
+        titles: Array.isArray(e.titles) ? [...e.titles] : [],
+        terms: Array.isArray(e.terms) ? [...e.terms] : [],
+        termString: e.termString ?? (Array.isArray(e.terms) ? e.terms.join(', ') : ''),
+        ignoredPattern: e.ignoredPattern || '',
+        hidden: !!e.hidden
+      })),
+      informations: (sec.informations || []).map(i => ({
+        title: i.title || '',
+        text: i.text || '',
+        hidden: !!i.hidden
+      })),
+      phrases: (sec.phrases || []).slice(),
+      variations: (sec.variations || []).map(va => ({
+        title: va.title || '',
+        spelling: va.spelling || '',
+        pronunciation: va.pronunciation || ''
+      })),
+      relations: (sec.relations || []).map(r => ({
+        titles: Array.isArray(r.titles) ? [...r.titles] : [],
+        number: r.number,
+        spelling: r.spelling || ''
       }))
     }))
-    const examples = (root.examples || []).slice()
-    return { version: 1, words, examples, _raw: root }
-  }
-  // version=2 → version=1 内部表現
-  const words = (root.words || []).map(v2WordToV1)
-  const examples = (root.examples || []).map((e) => ({
-    id: e.id ?? null,
-    number: e.id, // OTM-JSON の id が OTM 上の番号
-    tags: e.tags || [],
-    words: (e.words || []).map((w) => ({ number: w.id })),
-    sentence: e.sentence || '',
-    translation: e.translation || '',
-    supplement: e.supplement || '',
-    offer: e.offer ?? null
   }))
-  return { version: 1, words, examples, _sourceVersion: 2, _raw: root }
+  const examples = (root.examples || []).slice()
+  return { version: 1, words, examples, _raw: root }
 }
 
-// 内部表現を元の version に戻す（ダウンロード用）。
-// _sourceVersion が set されていれば version=2 として出力、
-// それ以外は version=1 として出力。
+// 内部表現を version=1 (ZpDIC) として出力する（ダウンロード用）。
 export function serializeFromInternal(internal) {
-  if (internal._sourceVersion === 2) {
-    return {
-      version: 2,
-      words: internal.words.map(v1WordToV2),
-      examples: (internal.examples || []).map((e) => ({
-        id: e.number,
-        tags: e.tags || [],
-        words: (e.words || []).map((w) => ({ id: w.number })),
-        sentence: e.sentence || '',
-        translation: e.translation || ''
-      })),
-      zpdicOnline: internal._raw?.zpdicOnline || {
-        explanation: '',
-        punctuations: [',', '、', '。'],
-        ignoredPattern: '',
-        pronunciationTitle: 'Pronunciation',
-        enableMarkdown: false
-      }
-    }
-  }
   return {
     version: 1,
     words: internal.words.map((w) => ({

@@ -25,6 +25,10 @@
         <div class="card-header">
           <span class="card-title">課題: {{ quiz.targetLabel }}</span>
           <span class="card-pos">(WordNet POS: {{ quiz.pos }})</span>
+          <div class="quiz-nav-buttons">
+            <button @click="goPrevious" class="nav-btn" :disabled="!hasPreviousQuiz()">前の課題</button>
+            <button @click="goNext" class="nav-btn" :disabled="loading">次の課題</button>
+          </div>
         </div>
 
         <section class="tree-section">
@@ -85,7 +89,7 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue'
-import { store, nextQuiz, submitQuiz } from '../store.js'
+import { store, nextQuiz, submitQuiz, previousQuiz, hasPreviousQuiz, hasNextQuiz } from '../store.js'
 import { hasNewNode } from '../lib/zpdc.js'
 import { getIssuedSynsets, getAllowReissue, setAllowReissue } from '../db/staging.js'
 import WordNode from '../components/WordNode.vue'
@@ -136,6 +140,17 @@ async function fetchQuiz() {
 
 async function submitCurrent() {
   await submitQuiz()
+}
+
+async function goPrevious() {
+  const prev = previousQuiz()
+  if (prev) {
+    await refreshIssued()
+  }
+}
+
+async function goNext() {
+  await fetchQuiz()
 }
 
 watch(reissue, async (val) => {
@@ -243,6 +258,26 @@ refreshIssued()
   gap: 4px;
   align-items: center;
   font-size: 13px;
+}
+.quiz-nav-buttons {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+.nav-btn {
+  padding: 2px 10px;
+  font-size: 12px;
+  border: 1px solid #999;
+  background: #eee;
+  cursor: pointer;
+}
+.nav-btn:hover:not(:disabled) {
+  background: #ddd;
+}
+.nav-btn:disabled {
+  color: #bbb;
+  border-color: #ddd;
+  cursor: not-allowed;
 }
 .fetch-error {
   margin-top: 8px;

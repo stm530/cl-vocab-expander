@@ -3,8 +3,8 @@
     <h2>辞書データの読み込み</h2>
 
     <section class="upload-section" v-if="!store.zpdcReady">
-      <p>ZpDICからエクスポートしたZPDCファイル（OTM-JSON, .jsonまたは.zpdc）をアップロードしてください。</p>
-      <input type="file" accept=".json,.zpdc" @change="handleFile" ref="fileInput" />
+      <p>ZpDICからエクスポートしたZPDCファイル（.zpdc）をアップロードしてください。</p>
+      <input type="file" accept=".zpdc" @change="handleFile" ref="fileInput" />
       <p v-if="loadError" class="error-text">{{ loadError }}</p>
     </section>
 

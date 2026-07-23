@@ -1,5 +1,5 @@
 import { reactive, computed } from 'vue'
-import { normalizeToInternal, serializeFromInternal, collectPosChoices, emptyWordTree, wordToTree, hasNewNode, collectMeaningTexts, defaultPosForWordnet, newId } from './lib/zpdc.js'
+import { normalizeToInternal, collectPosChoices, emptyWordTree, wordToTree, hasNewNode, collectMeaningTexts, defaultPosForWordnet, newId } from './lib/zpdc.js'
 import { loadWordNet, isWordNetLoaded, pickRandomSynset, getSynsetWords, getSynsetDef, getHypernyms } from './db/wordnet.js'
 import { SpellingIndex } from './lib/spellcheck.js'
 import { TfidfSimilarityEngine } from './lib/similarity.js'
@@ -23,6 +23,7 @@ export const store = reactive({
   reissueAllowed: false,
 
   currentQuiz: null,
+  quizHistory: [],
 
   senseAddSearchText: '',
   senseAddFound: [],
@@ -39,6 +40,7 @@ export function resetStore() {
   store.spellIndex = null
   store.simEngine = null
   store.currentQuiz = null
+  store.quizHistory = []
   store.senseAddSearchText = ''
   store.senseAddFound = []
   store.reviewEntries = []
@@ -166,8 +168,28 @@ export async function nextQuiz() {
     submitted: false,
   }
 
+  // Add current quiz to history before replacing it
+  if (store.currentQuiz) {
+    store.quizHistory.push(store.currentQuiz)
+  }
+
   store.currentQuiz = q
   return q
+}
+
+export function previousQuiz() {
+  if (store.quizHistory.length === 0) return null
+  const prev = store.quizHistory.pop()
+  store.currentQuiz = prev
+  return prev
+}
+
+export function hasPreviousQuiz() {
+  return store.quizHistory.length > 0
+}
+
+export function hasNextQuiz() {
+  return store.currentQuiz !== null
 }
 
 export async function submitQuiz() {
@@ -267,7 +289,7 @@ export async function exportZpdcJSON() {
   if (!store.internalRoot) throw new Error('辞書データが読み込まれていません')
   const approved = await listApprovedStaging()
   const merged = mergeApprovedStagingIntoZpdc(store.internalRoot, approved)
-  return serializeFromInternal(merged)
+  return JSON.stringify(merged, null, 2)
 }
 
 export function spellCheck(input) {
@@ -278,4 +300,29 @@ export function spellCheck(input) {
 export function similarSearch(query, k = 5) {
   if (!store.simEngine) return []
   return store.simEngine.search(query, k, store.internalRoot)
+}
+
+export function searchMeaningsByText(query, maxResults = 10) {
+  if (!store.internalRoot || !query || query.trim().length < 1) return []
+  const q = query.trim().toLowerCase()
+  const results = []
+  for (const w of store.internalRoot.words) {
+    for (const sec of w.sections || []) {
+      for (const e of sec.equivalents || []) {
+        for (const term of e.terms || []) {
+          const termLower = (term || '').toLowerCase()
+          if (termLower.includes(q)) {
+            results.push({
+              wordNumber: w.number,
+              spelling: w.spelling,
+              pos: e.titles || [],
+              text: term
+            })
+            if (results.length >= maxResults) return results
+          }
+        }
+      }
+    }
+  }
+  return results
 }

@@ -15,6 +15,12 @@
       />
       <SpellSuggestion :spelling="tree.spelling" />
     </div>
+    <div v-if="tree.origin === 'existing' && existingMeanings.length > 0" class="existing-meanings-display">
+      <span v-for="(m, i) in existingMeanings" :key="i" class="existing-meaning-item">
+        <span v-if="m.pos.length > 0" class="meaning-pos">[{{ m.pos.join(', ') }}]</span>
+        <span class="meaning-text">{{ m.text }}</span>
+      </span>
+    </div>
     <div class="children">
       <PosGroupNode
         v-for="(pg, i) in tree.posGroups"
@@ -29,7 +35,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import PosGroupNode from './PosGroupNode.vue'
 import SpellSuggestion from './SpellSuggestion.vue'
 import { newId, newPosGroupNode } from '../lib/zpdc.js'
@@ -52,6 +58,18 @@ function removePosGroup(i) {
   if (props.tree.posGroups.length <= 1) return
   props.tree.posGroups.splice(i, 1)
 }
+
+const existingMeanings = computed(() => {
+  const result = []
+  for (const pg of props.tree.posGroups || []) {
+    for (const m of pg.meanings || []) {
+      if (m.text && m.text.trim()) {
+        result.push({ pos: pg.titles || [], text: m.text.trim() })
+      }
+    }
+  }
+  return result
+})
 
 function getSiblingWords() {
   return []
@@ -106,6 +124,26 @@ function getSiblingWords() {
 .word-input:disabled {
   background: #f6f6f6;
   color: #555;
+}
+.existing-meanings-display {
+  padding: 4px 0 4px 28px;
+  font-size: 12px;
+  color: #888;
+  font-family: monospace;
+  border-left: 2px solid #eee;
+  margin-left: 12px;
+}
+.existing-meaning-item {
+  display: inline-block;
+  margin-right: 12px;
+  margin-bottom: 2px;
+}
+.meaning-pos {
+  color: #999;
+  margin-right: 4px;
+}
+.meaning-text {
+  color: #666;
 }
 .children {
   padding-left: 16px;
