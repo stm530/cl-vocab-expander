@@ -94,14 +94,14 @@ function getSiblingWords() {
   gap: 0;
 }
 .node-btn {
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   padding: 0;
   border: 1px solid #bbb;
   background: #eee;
   cursor: pointer;
-  font-size: 16px;
-  line-height: 22px;
+  font-size: 14px;
+  line-height: 18px;
   text-align: center;
 }
 .node-btn:hover {

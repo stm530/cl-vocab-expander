@@ -45,8 +45,8 @@
       <h3>WordNet</h3>
       <div v-if="store.wordnetLoading">
         <div class="progress-bar">
-          <div class="progress-fill" :style="{ width: (store.wordnetLoadProgress * 100) + '%' }"></div>
-          <span class="progress-text">{{ Math.round(store.wordnetLoadProgress * 100) }}%</span>
+          <div class="progress-fill" :style="{ width: progressWidth }"></div>
+          <span class="progress-text">{{ progressText }}</span>
         </div>
       </div>
       <p v-if="store.wordnetReady">読み込み完了 ({{ wordnetCount }} synsets)</p>
@@ -68,6 +68,19 @@ const importRef = ref(null)
 
 const wordnetCount = computed(() => {
   try { return countSynsets() } catch { return 0 }
+})
+
+const progressWidth = computed(() => {
+  if (store.wordnetLoadProgress < 0) return '0%'
+  return (store.wordnetLoadProgress * 100) + '%'
+})
+
+const progressText = computed(() => {
+  if (store.wordnetLoadProgress < 0) {
+    const mb = (store.wordnetLoadBytes / (1024 * 1024)).toFixed(1)
+    return `読み込み中... ${mb} MB`
+  }
+  return Math.round(store.wordnetLoadProgress * 100) + '%'
 })
 
 async function loadReissue() {

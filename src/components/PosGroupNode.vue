@@ -99,6 +99,26 @@ function addMeaning() {
 .toggle-edit-btn:hover {
   background: #ddd;
 }
+.node-btn {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid #bbb;
+  background: #eee;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 18px;
+  text-align: center;
+}
+.node-btn:hover {
+  background: #ddd;
+}
+.node-btn.disabled, .node-btn:disabled {
+  color: #ccc;
+  border-color: #ddd;
+  cursor: default;
+  background: #f6f6f6;
+}
 .children {
   padding-left: 16px;
 }

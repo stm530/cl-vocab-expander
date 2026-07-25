@@ -1,5 +1,5 @@
 import { reactive, computed } from 'vue'
-import { normalizeToInternal, collectPosChoices, emptyWordTree, wordToTree, hasNewNode, collectMeaningTexts, defaultPosForWordnet, newId } from './lib/zpdc.js'
+import { normalizeToInternal, collectPosChoices, emptyWordTree, wordToTree, hasNewNode, collectMeaningTexts, defaultPosForWordnet, newId, newMeaningNode } from './lib/zpdc.js'
 import { loadWordNet, isWordNetLoaded, pickRandomSynset, getSynsetWords, getSynsetDef, getHypernyms } from './db/wordnet.js'
 import { SpellingIndex } from './lib/spellcheck.js'
 import { TfidfSimilarityEngine } from './lib/similarity.js'
@@ -140,7 +140,26 @@ export async function nextQuiz() {
     targetTree.posGroups[0].titles = defaultPosForWordnet(row.pos, store.posChoices)
   }
 
-  const hyperTrees = hypernymCandidates.map(() => emptyWordTree(''))
+  // Create hyperTrees with actual hypernym word data (not empty trees)
+  const hyperTrees = hypernymCandidates.map((hc) => {
+    const hWords = getSynsetWords(hc.synset)
+    const tree = emptyWordTree(hWords.ja.join(' / ') || hWords.en.join(' / ') || '')
+    if (tree.posGroups.length > 0) {
+      tree.posGroups[0].titles = defaultPosForWordnet(hc.pos, store.posChoices)
+    }
+    // Add existing meanings from WordNet
+    const defs = getSynsetDef(hc.synset)
+    if (defs.length > 0 && tree.posGroups.length > 0) {
+      const pg = tree.posGroups[0]
+      if (pg.meanings.length === 1 && pg.meanings[0].text === '') {
+        pg.meanings = []
+      }
+      defs.filter(d => d.lang === 'jpn').forEach(d => {
+        pg.meanings.push(newMeaningNode(d.def, 'existing'))
+      })
+    }
+    return tree
+  })
   if (hyperTrees.length === 0) {
     hyperTrees.push(emptyWordTree(''))
   }

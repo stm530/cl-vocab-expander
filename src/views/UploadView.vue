@@ -67,13 +67,13 @@ const wordnetCount = computed(() => {
 })
 
 const progressWidth = computed(() => {
-  if (store.wordnetLoadProgress < 0) return '100%' // バイト数モードの場合は満タン表示
+  if (store.wordnetLoadProgress < 0) return '0%' // バイト数モードの場合は幅0
   return (store.wordnetLoadProgress * 100) + '%'
 })
 
 const progressText = computed(() => {
   if (store.wordnetLoadProgress < 0) {
-    // バイト数のみ表示モード
+    // バイト数のみ表示モード（圧縮時）
     const mb = (store.wordnetLoadBytes / (1024 * 1024)).toFixed(1)
     return `読み込み中... ${mb} MB`
   }
@@ -91,7 +91,7 @@ async function handleFile(e) {
   }
 }
 
-async function reload() {
+async function reUpload() {
   loadError.value = ''
   store.zpdcReady = false
   store.zpdcFilename = ''
@@ -99,7 +99,7 @@ async function reload() {
   store.posChoices = []
   store.spellIndex = null
   store.simEngine = null
-  if (fileInput.value) fileInput.value.value = ''
+  if (fileInput.value) fileInput.value.click()
 }
 
 async function removeZpdc() {

@@ -119,7 +119,8 @@ export async function loadWordNet({ onProgress } = {}) {
     if (!resp.ok) throw new Error(`wnjpn.db の取得に失敗: ${resp.status}`)
     const contentEncoding = resp.headers.get('Content-Encoding') || ''
     const total = Number(resp.headers.get('Content-Length') || 0)
-    const hasProgress = resp.body && total && onProgress && !contentEncoding
+    const isCompressed = contentEncoding !== ''
+    const hasProgress = resp.body && total && onProgress
     if (!hasProgress) {
       const buf = await resp.arrayBuffer()
       db = new SQL.Database(new Uint8Array(buf))
@@ -127,7 +128,7 @@ export async function loadWordNet({ onProgress } = {}) {
       await saveWordNetToIndexedDB(db)
       return db
     }
-    // ストリーム読み込み＋進捗（非圧縮時のみ）
+    // ストリーム読み込み＋進捗（圧縮時は推定進捗を表示）
     const reader = resp.body.getReader()
     const chunks = []
     let received = 0
@@ -136,7 +137,12 @@ export async function loadWordNet({ onProgress } = {}) {
       if (done) break
       chunks.push(value)
       received += value.length
-      onProgress({ received, total, ratio: received / total, bytesOnly: false })
+      // 圧縮されている場合、実際のサイズは不明なので受信バイト数を表示
+      if (isCompressed) {
+        onProgress({ received, total: 0, ratio: 0, bytesOnly: true })
+      } else {
+        onProgress({ received, total, ratio: received / total, bytesOnly: false })
+      }
     }
     const merged = new Uint8Array(received)
     let offset = 0
