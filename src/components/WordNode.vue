@@ -1,6 +1,6 @@
 <template>
-  <div class="word-node" :class="{ 'existing-node': tree.origin === 'existing' }">
-    <div class="word-row">
+  <div class="word-node" :class="{ 'existing-node': tree.origin === 'existing', 'display-only': isDisplayOnly }">
+    <div class="word-row" v-if="!isDisplayOnly">
       <span class="btn-group">
         <button class="node-btn" @click="addWordSibling" title="単語追加">+</button>
         <button class="node-btn" :class="{ disabled: tree.origin === 'existing' }" :disabled="tree.origin === 'existing'" @click="$emit('remove')" title="単語削除">-</button>
@@ -15,13 +15,17 @@
       />
       <SpellSuggestion :spelling="tree.spelling" />
     </div>
+    <div v-else class="word-row-display">
+      <span class="word-spelling">{{ tree.spelling }}</span>
+      <span v-if="tree.posGroups.length > 0 && tree.posGroups[0].titles.length > 0" class="word-pos">[{{ tree.posGroups[0].titles.join(', ') }}]</span>
+    </div>
     <div v-if="tree.origin === 'existing' && existingMeanings.length > 0" class="existing-meanings-display">
       <span v-for="(m, i) in existingMeanings" :key="i" class="existing-meaning-item">
         <span v-if="m.pos.length > 0" class="meaning-pos">[{{ m.pos.join(', ') }}]</span>
         <span class="meaning-text">{{ m.text }}</span>
       </span>
     </div>
-    <div class="children">
+    <div class="children" v-if="!isDisplayOnly">
       <PosGroupNode
         v-for="(pg, i) in tree.posGroups"
         :key="pg.id"
@@ -46,6 +50,8 @@ const props = defineProps({
   variant: { type: String, default: '' },
 })
 const emit = defineEmits(['remove'])
+
+const isDisplayOnly = computed(() => props.variant === 'hyper-display' || props.variant === 'target-display')
 
 function addWordSibling() {
   emit('addWord')
@@ -125,6 +131,21 @@ function getSiblingWords() {
   background: #f6f6f6;
   color: #555;
 }
+.word-row-display {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0;
+  font-family: monospace;
+  font-size: 14px;
+}
+.word-spelling {
+  font-weight: bold;
+}
+.word-pos {
+  color: #666;
+  font-size: 13px;
+}
 .existing-meanings-display {
   padding: 4px 0 4px 28px;
   font-size: 12px;
@@ -147,5 +168,8 @@ function getSiblingWords() {
 }
 .children {
   padding-left: 16px;
+}
+.display-only .children {
+  display: none;
 }
 </style>

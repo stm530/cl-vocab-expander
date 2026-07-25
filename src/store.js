@@ -135,6 +135,24 @@ export async function nextQuiz() {
     }
   })
 
+  // targetDisplayTree: ターゲット単語の表示用（読み取り専用、WordNetデータを表示）
+  const targetDisplayTree = emptyWordTree(words.ja.join(' / ') || words.en.join(' / ') || '')
+  targetDisplayTree.origin = 'existing'
+  if (targetDisplayTree.posGroups.length > 0) {
+    targetDisplayTree.posGroups[0].origin = 'existing'
+    targetDisplayTree.posGroups[0].titles = defaultPosForWordnet(row.pos, store.posChoices)
+  }
+  if (defs.length > 0 && targetDisplayTree.posGroups.length > 0) {
+    const pg = targetDisplayTree.posGroups[0]
+    if (pg.meanings.length === 1 && pg.meanings[0].text === '') {
+      pg.meanings = []
+    }
+    defs.filter(d => d.lang === 'jpn').forEach(d => {
+      pg.meanings.push(newMeaningNode(d.def, 'existing'))
+    })
+  }
+
+  // targetTree: ターゲット単語（新語登録）用 - 空の入力欄
   const targetTree = emptyWordTree('')
   if (targetTree.posGroups.length > 0) {
     targetTree.posGroups[0].titles = defaultPosForWordnet(row.pos, store.posChoices)
@@ -194,6 +212,7 @@ export async function nextQuiz() {
     synset: row.synset,
     pos: row.pos,
     targetLabel,
+    targetDisplayTree,
     targetTree,
     hypernymDisplayTrees,
     hyperTrees,

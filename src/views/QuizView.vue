@@ -32,11 +32,20 @@
         </div>
 
         <section class="tree-section">
+          <h4>ターゲット単語</h4>
+          <WordNode
+            :tree="quiz.targetDisplayTree"
+            :pos-choices="store.posChoices"
+            variant="target-display"
+          />
+        </section>
+
+        <section class="tree-section">
           <h4>ターゲット単語（新語登録）</h4>
           <WordNode
             :tree="quiz.targetTree"
             :pos-choices="store.posChoices"
-            variant="target"
+            variant="target-input"
           />
         </section>
 
