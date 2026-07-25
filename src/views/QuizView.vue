@@ -42,17 +42,25 @@
 
         <section class="tree-section">
           <h4>親概念単語</h4>
-          <div v-for="(t, i) in quiz.hyperTrees" :key="'hyper-' + i" class="hyper-block">
-            <p class="hyper-label" v-if="quiz.hypernymCandidates[i]">
-              上位語（{{ quiz.hypernymCandidates[i].label }}）
-            </p>
+          <div v-for="(t, i) in quiz.hypernymDisplayTrees" :key="'hyper-display-' + i" class="hyper-block">
             <WordNode
               :tree="t"
               :pos-choices="store.posChoices"
-              variant="hyper"
+              variant="hyper-display"
             />
-    </div>
-          <p v-if="quiz.hyperTrees.length === 0" class="notice">上位語なし（最上位概念）</p>
+          </div>
+          <p v-if="quiz.hypernymDisplayTrees.length === 0" class="notice">上位語なし（最上位概念）</p>
+        </section>
+
+        <section class="tree-section">
+          <h4>親概念単語（新語登録）</h4>
+          <div v-for="(t, i) in quiz.hyperTrees" :key="'hyper-input-' + i" class="hyper-block">
+            <WordNode
+              :tree="t"
+              :pos-choices="store.posChoices"
+              variant="hyper-input"
+            />
+          </div>
         </section>
 
         <section class="tree-section">

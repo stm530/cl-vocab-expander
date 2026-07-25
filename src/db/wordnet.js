@@ -226,7 +226,7 @@ export function getHypernyms(synset) {
   return runAll(
     `SELECT s2.synset, s2.pos, s2.name
        FROM synlink l JOIN synset s2 ON l.synset2 = s2.synset
-       WHERE l.synset1 = ? AND l.link = 'hypernym'`,
+       WHERE l.synset1 = ? AND l.link = 'hype'`,
     [synset],
   )
 }
@@ -236,7 +236,7 @@ export function getHyponyms(synset) {
   return runAll(
     `SELECT s2.synset, s2.pos, s2.name
        FROM synlink l JOIN synset s2 ON l.synset2 = s2.synset
-       WHERE l.synset1 = ? AND l.link = 'hyponym'`,
+       WHERE l.synset1 = ? AND l.link = 'hypo'`,
     [synset],
   )
 }

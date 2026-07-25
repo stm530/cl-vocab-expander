@@ -140,11 +140,13 @@ export async function nextQuiz() {
     targetTree.posGroups[0].titles = defaultPosForWordnet(row.pos, store.posChoices)
   }
 
-  // Create hyperTrees with actual hypernym word data (not empty trees)
-  const hyperTrees = hypernymCandidates.map((hc) => {
+  // hypernymDisplayTrees: 親概念単語の表示用（読み取り専用、WordNetデータを表示）
+  const hypernymDisplayTrees = hypernymCandidates.map((hc) => {
     const hWords = getSynsetWords(hc.synset)
     const tree = emptyWordTree(hWords.ja.join(' / ') || hWords.en.join(' / ') || '')
+    tree.origin = 'existing'  // 表示専用にする
     if (tree.posGroups.length > 0) {
+      tree.posGroups[0].origin = 'existing'
       tree.posGroups[0].titles = defaultPosForWordnet(hc.pos, store.posChoices)
     }
     // Add existing meanings from WordNet
@@ -160,6 +162,13 @@ export async function nextQuiz() {
     }
     return tree
   })
+  if (hypernymDisplayTrees.length === 0) {
+    hypernymDisplayTrees.push(emptyWordTree(''))
+    hypernymDisplayTrees[0].origin = 'existing'
+  }
+
+  // hyperTrees: 親概念単語（新語登録）用 - 空の入力欄
+  const hyperTrees = hypernymCandidates.map(() => emptyWordTree(''))
   if (hyperTrees.length === 0) {
     hyperTrees.push(emptyWordTree(''))
   }
@@ -186,6 +195,7 @@ export async function nextQuiz() {
     pos: row.pos,
     targetLabel,
     targetTree,
+    hypernymDisplayTrees,
     hyperTrees,
     hypernymCandidates,
     similarTrees,
