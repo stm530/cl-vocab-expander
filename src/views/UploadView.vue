@@ -40,8 +40,8 @@
       <h3>日本語WordNet</h3>
       <p>意味ネットワークデータベース（日本語WordNet）をブラウザ内に読み込みます（初回のみ時間がかかります）。</p>
       <div v-if="store.wordnetLoading" class="progress-bar">
-        <div class="progress-fill" :style="{ width: (store.wordnetLoadProgress * 100) + '%' }"></div>
-        <span class="progress-text">{{ Math.round(store.wordnetLoadProgress * 100) }}%</span>
+        <div class="progress-fill" :style="{ width: progressWidth }"></div>
+        <span class="progress-text">{{ progressText }}</span>
       </div>
       <p v-if="store.wordnetReady">WordNet読み込み完了（{{ wordnetCount }} synsets）</p>
       <p v-if="store.wordnetReady && store.zpdcReady" class="ready-message">準備完了です。「出題」タブから作業を開始できます。</p>
@@ -51,7 +51,7 @@
 
 <script setup>
 import { ref, computed } from 'vue'
-import { store, initWordNet, loadZpdcFromUpload } from '../store.js'
+import { store, initWordNet, loadZpdcFromUpload, tryLoadZpdcFromIndexedDB } from '../store.js'
 import { countSynsets } from '../db/wordnet.js'
 
 const fileInput = ref(null)
@@ -64,6 +64,20 @@ const wordnetCount = computed(() => {
   } catch {
     return 0
   }
+})
+
+const progressWidth = computed(() => {
+  if (store.wordnetLoadProgress < 0) return '100%' // バイト数モードの場合は満タン表示
+  return (store.wordnetLoadProgress * 100) + '%'
+})
+
+const progressText = computed(() => {
+  if (store.wordnetLoadProgress < 0) {
+    // バイト数のみ表示モード
+    const mb = (store.wordnetLoadBytes / (1024 * 1024)).toFixed(1)
+    return `読み込み中... ${mb} MB`
+  }
+  return Math.round(store.wordnetLoadProgress * 100) + '%'
 })
 
 async function handleFile(e) {
@@ -91,6 +105,12 @@ async function reload() {
 async function removeZpdc() {
   await import('../db/staging.js').then(m => m.clearUploadedZpdc())
   reload()
+}
+
+// 初期化
+tryLoadZpdcFromIndexedDB()
+if (!store.wordnetReady) {
+  initWordNet()
 }
 </script>
 

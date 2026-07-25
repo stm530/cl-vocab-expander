@@ -6,6 +6,12 @@ import initSqlJs from 'sql.js'
 const WASM_URL = (import.meta.env.BASE_URL || '/') + 'sql-wasm.wasm'
 const DB_URL = (import.meta.env.BASE_URL || '/') + 'wnjpn.db'
 
+// IndexedDB keys for WordNet persistence
+const WORDNET_DB_KEY = 'wordnet-db'
+const WORDNET_DB_VERSION_KEY = 'wordnet-db-version'
+const WORDNET_DB_NAME = 'cl-vocab-expander-wordnet'
+const WORDNET_STORE_NAME = 'wordnet'
+
 let SQL = null
 let db = null
 let loadPromise = null
@@ -42,6 +48,56 @@ export function wordnetPosLabel(pos) {
   return POS_LABELS[pos] || pos || ''
 }
 
+// IndexedDB helpers for WordNet database persistence
+async function openWordNetDB() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(WORDNET_DB_NAME, 1)
+    request.onupgradeneeded = (event) => {
+      const db = event.target.result
+      if (!db.objectStoreNames.contains(WORDNET_STORE_NAME)) {
+        db.createObjectStore(WORDNET_STORE_NAME)
+      }
+    }
+    request.onsuccess = () => resolve(request.result)
+    request.onerror = () => reject(request.error)
+  })
+}
+
+async function saveWordNetToIndexedDB(database) {
+  const idb = await openWordNetDB()
+  return new Promise((resolve, reject) => {
+    const tx = idb.transaction(WORDNET_STORE_NAME, 'readwrite')
+    const store = tx.objectStore(WORDNET_STORE_NAME)
+    // sql.js databaseをUint8Arrayとしてエクスポート
+    const data = database.export()
+    const request = store.put(data, WORDNET_DB_KEY)
+    request.onsuccess = () => resolve()
+    request.onerror = () => reject(request.error)
+  })
+}
+
+async function loadWordNetFromIndexedDB() {
+  const idb = await openWordNetDB()
+  return new Promise((resolve, reject) => {
+    const tx = idb.transaction(WORDNET_STORE_NAME, 'readonly')
+    const store = tx.objectStore(WORDNET_STORE_NAME)
+    const request = store.get(WORDNET_DB_KEY)
+    request.onsuccess = () => resolve(request.result)
+    request.onerror = () => reject(request.error)
+  })
+}
+
+async function clearWordNetIndexedDB() {
+  const idb = await openWordNetDB()
+  return new Promise((resolve, reject) => {
+    const tx = idb.transaction(WORDNET_STORE_NAME, 'readwrite')
+    const store = tx.objectStore(WORDNET_STORE_NAME)
+    const request = store.delete(WORDNET_DB_KEY)
+    request.onsuccess = () => resolve()
+    request.onerror = () => reject(request.error)
+  })
+}
+
 // WordNetをブラウザ内にロードする。初回は数十〜数百MBのDBダウンロードが発生する。
 // 既にロード済みならキャッシュを返す（複数回呼ばれても1回だけ読み込む）。
 export async function loadWordNet({ onProgress } = {}) {
@@ -51,7 +107,14 @@ export async function loadWordNet({ onProgress } = {}) {
     // 1) sql.js 本体と wasm を初期化
     SQL = await initSqlJs({ locateFile: () => WASM_URL })
 
-    // 2) DBファイルを fetch で取得（進捗コールバック対応）
+    // 2) IndexedDBからキャッシュを試す
+    const cachedData = await loadWordNetFromIndexedDB()
+    if (cachedData) {
+      db = new SQL.Database(new Uint8Array(cachedData))
+      return db
+    }
+
+    // 3) DBファイルを fetch で取得（進捗コールバック対応）
     const resp = await fetch(DB_URL)
     if (!resp.ok) throw new Error(`wnjpn.db の取得に失敗: ${resp.status}`)
     const contentEncoding = resp.headers.get('Content-Encoding') || ''
@@ -60,9 +123,11 @@ export async function loadWordNet({ onProgress } = {}) {
     if (!hasProgress) {
       const buf = await resp.arrayBuffer()
       db = new SQL.Database(new Uint8Array(buf))
+      // IndexedDBに保存
+      await saveWordNetToIndexedDB(db)
       return db
     }
-    // ストリーム読み込み＋進捗
+    // ストリーム読み込み＋進捗（非圧縮時のみ）
     const reader = resp.body.getReader()
     const chunks = []
     let received = 0
@@ -71,7 +136,7 @@ export async function loadWordNet({ onProgress } = {}) {
       if (done) break
       chunks.push(value)
       received += value.length
-      onProgress({ received, total, ratio: received / total })
+      onProgress({ received, total, ratio: received / total, bytesOnly: false })
     }
     const merged = new Uint8Array(received)
     let offset = 0
@@ -80,6 +145,8 @@ export async function loadWordNet({ onProgress } = {}) {
       offset += c.length
     }
     db = new SQL.Database(merged)
+    // IndexedDBに保存
+    await saveWordNetToIndexedDB(db)
     return db
   })()
   return loadPromise

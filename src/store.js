@@ -15,6 +15,7 @@ export const store = reactive({
   wordnetReady: false,
   wordnetLoading: false,
   wordnetLoadProgress: 0,
+  wordnetLoadBytes: 0,
   wordnetLoadError: '',
 
   spellIndex: null,
@@ -56,8 +57,13 @@ export async function initWordNet(onProgress) {
   store.wordnetLoadError = ''
   try {
     await loadWordNet({
-      onProgress: ({ ratio }) => {
-        store.wordnetLoadProgress = ratio
+      onProgress: ({ ratio, bytesOnly, received }) => {
+        if (bytesOnly) {
+          store.wordnetLoadProgress = -1 // 特別値: バイト数のみ表示
+          store.wordnetLoadBytes = received
+        } else {
+          store.wordnetLoadProgress = ratio
+        }
       }
     })
     store.wordnetReady = true
